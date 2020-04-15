@@ -2,6 +2,26 @@
 
 namespace Game
 {
+	std::vector<std::string> Sys_ListFilesWrapper(const std::string& directory, const std::string& extension)
+	{
+		auto fileCount = 0;
+		auto files = Game::Sys_ListFiles(directory.data(), extension.data(), 0, &fileCount, 0);
+
+		std::vector<std::string> result;
+
+		for (auto i = 0; i < fileCount; i++)
+		{
+			if (files[i])
+			{
+				result.push_back(files[i]);
+			}
+		}
+
+		Game::FS_FreeFileList(files);
+
+		return result;
+	}
+	
 	AddRefToObject_t AddRefToObject = AddRefToObject_t(0x61C360);
 	AllocObject_t AllocObject = AllocObject_t(0x434320);
 
@@ -661,6 +681,43 @@ namespace Game
 		StringTable* rankTable = DB_FindXAssetHeader(ASSET_TYPE_STRINGTABLE, "mp/rankTable.csv").stringTable;
 		const char* maxrank = StringTable_Lookup(rankTable, 0, "maxrank", 1);
 		return atoi(StringTable_Lookup(rankTable, 0, maxrank, 7));
+	}
+
+	void Vec3Normalize(vec3_t& vec)
+	{
+		const auto length = std::sqrt(std::pow(vec[0], 2) + std::pow(vec[1], 2) + std::pow(vec[2], 2));
+		vec[0] /= length;
+		vec[1] /= length;
+		vec[2] /= length;
+	}
+
+	void Vec2UnpackTexCoords(const PackedTexCoords in, vec2_t* out)
+	{
+		unsigned int v3; // xmm1_4
+
+		if (LOWORD(in.packed))
+			v3 = ((in.packed & 0x8000) << 16) | (((((in.packed & 0x3FFF) << 14) - (~(LOWORD(in.packed) << 14) & 0x10000000)) ^ 0x80000001) >> 1);
+		else
+			v3 = 0;
+
+		(*out)[0] = *reinterpret_cast<float*>(&v3);
+
+		if (HIWORD(in.packed))
+			v3 = ((HIWORD(in.packed) & 0x8000) << 16) | (((((HIWORD(in.packed) & 0x3FFF) << 14)
+				- (~(HIWORD(in.packed) << 14) & 0x10000000)) ^ 0x80000001) >> 1);
+		else
+			v3 = 0;
+
+		(*out)[1] = *reinterpret_cast<float*>(&v3);
+	}
+
+	void MatrixVecMultiply(const float (& mulMat)[3][3], const vec3_t& mulVec, vec3_t& solution)
+	{
+		vec3_t res;
+		res[0] = mulMat[0][0] * mulVec[0] + mulMat[1][0] * mulVec[1] + mulMat[2][0] * mulVec[2];
+		res[1] = mulMat[0][1] * mulVec[0] + mulMat[1][1] * mulVec[1] + mulMat[2][1] * mulVec[2];
+		res[2] = mulMat[0][2] * mulVec[0] + mulMat[1][2] * mulVec[1] + mulMat[2][2] * mulVec[2];
+		std::memmove(&solution[0], &res[0], sizeof(res));
 	}
 
 	void SortWorldSurfaces(GfxWorld* world)
